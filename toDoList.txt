@@ -1,0 +1,27 @@
+---Coisas a fazer:
+	--geral
+		 ok-Interface 
+		 70%-conexão com o driver (conectar ta travando...)
+		 90%-atualizar e zerar ( metodos ja feitos)
+
+		 70%- threads com funcionalidades
+		 ok- travas de segurança
+		 - conectar thread de sinal a barra "progressBar"(simulandoo plot)
+		 -fazer o plot imprimir sinal da thread
+		 -plot 100%
+
+	--Modo basico
+		-seletor de velocidade da planta
+		- seletor do nivel do tanque 1 ( tanque 2 no prox labs...)		
+
+	--modo moderado
+		-Seletor de malha aberta ou fechada (por enquanto apenas moderada)
+		- malha aberta e fechada
+		ok- seletor de configurações do sinal ( amlitude, periodo, etc)
+
+	--Modo avançado
+		-prox labs
+
+	--Configurações
+		-seletor de canais e leituras
+	
