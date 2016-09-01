@@ -11,8 +11,7 @@ commThread::commThread(QObject *parent):
     channel = 0;
     waveTime = 0;
     control[0] = P; control[1] = P;
-    lastControl[0] = control[0];
-    lastControl[1] = control[1];
+    lastControl[0] = control[0]; lastControl[1] = control[1];
     //IP para o quanser
     string IPs = "10.13.99.69";
     char * IP3 = new char[IPs.size() + 1];
@@ -29,8 +28,26 @@ commThread::commThread(QObject *parent):
     contEscravo.lastI = 0;
     contEscravo.lastD = 0;
 
+    polesOb[0] = complex<double>(0.99876,0);
+    polesOb[1] = complex<double>(0.0999273,0);
 
+    // Matrizes do sistema
+    G = mat("0.993458148011545 0; 0.006520407260849 0.993458148011545");
+    H = mat("0.021196129223099; 0.000069482650830");
+    C = mat("0 1");
+    invWo = mat(" -152.3613646001405 153.3646534633584; 1 0");
+    L = mat("0.8; 0.9");
 
+    // Valores estimados
+    xEst = mat(2, 1, arma::fill::zeros);
+    erroEst = mat(2, 1, arma::fill::zeros);
+
+    //Seguidor
+    Ga = mat("0.993458148011545 0 0.021196129223099; 0.006520407260849 0.993458148011545 0.000069482650830; 0 0 0");
+    Ha = mat("0; 0; 1");
+    invWc = mat("0 0 1; 70.741834006738 -7188.169264136371 0; -23.718572056820 7235.502852861834 0");
+    kMatAux = mat("-0.5010938890433 151.8619115450547 1.0; 0 -1.0 1.0; 47.0237705882343 46.8697910620831 0.3086342756075");
+    k2 = mat("0 0");
     v = 0;
 }
 
@@ -53,7 +70,7 @@ void commThread::run(){
 
             if(!simulationMode) {
                 // Le
-                nivelTanque1 =q->readAD(0) * 6.25;
+                nivelTanque1 = q->readAD(0) * 6.25;
                 if (nivelTanque1 < 0) nivelTanque1 = 0;
                 nivelTanque2 = q->readAD(1) * 6.25;
                 if (nivelTanque2 < 0) nivelTanque2 = 0;
@@ -126,33 +143,28 @@ void commThread::run(){
                 contMestre.erro = contMestre.setPoint - nivelTanque;
 
                 if(follower) {
-                    qDebug() << "entrou follower ";
-
+                    calculoDeControleSeguidor(nivelTanque1, nivelTanque2, contMestre.erro);
                 }
                 else {
-                     qDebug() << "nao entrou no follwer ";
                     calculoDeControle(&contMestre, nivelTanque, nivelTanque1, nivelTanque2);
                     qDebug();
-                    if(0){
-                        qDebug() << "entrou na cascata";
+                    if(cascade){
                         contEscravo.setPoint = contMestre.sinalCalculado;
                         contEscravo.erro = contEscravo.setPoint - nivelTanque1;
 
                         calculoDeControle(&contEscravo, nivelTanque,nivelTanque1,nivelTanque2);
                     }
                     else{
-                        qDebug() << "nao entrou na cascata ";
-                        //contEscravo.sinalSaturado=contMestre.sinalSaturado;
+                        contEscravo.sinalSaturado=contMestre.sinalSaturado;
                     }
-
+                    if(observer) calcObs(nivelTanque1, nivelTanque2, contEscravo.sinalSaturado*3);
                 }
             }
 //            kf() << "SinalSaturado: " << contEscravo.sinalSaturado;
             // Escreve no canal selecionado
             if(!simulationMode) {
-                qDebug() << "sinalSaturado: " << contEscravo.sinalSaturado << "\n";
+                //qDebug() << "sinalSaturado: " << sinalSaturado << "\n";
                 q->writeDA(channel, contEscravo.sinalSaturado);
-                qDebug() << "______________________";
             } else { //Simulacao
 
                 //Nivel Tanque 1
@@ -167,17 +179,140 @@ void commThread::run(){
            }
 
             // Envia valores para o supervisorio
-            emit plotValues(timeStamp, contMestre.sinalCalculado, contEscravo.sinalCalculado, contEscravo.sinalSaturado, nivelTanque1, nivelTanque2, contMestre.setPoint, contMestre.erro, contMestre.i, contEscravo.i, contMestre.d, contEscravo.d);
+            emit plotValues(timeStamp, contMestre.sinalCalculado, contEscravo.sinalCalculado, contEscravo.sinalSaturado, nivelTanque1, nivelTanque2, contMestre.setPoint, contMestre.erro, contMestre.i, contEscravo.i, contMestre.d, contEscravo.d, xEst[0], xEst[1], erroEst[0], erroEst[1]);
         }
         //qDebug() << "Kp:" << contMestre.kp << "Windup" << contMestre.windup << "controlador:" <<  control[0] << "seguidor" << follower << "Observador" << observer;
     }
 
     if(!simulationMode) {
         q->writeDA(channel, 0);
-        delete q;
+        //delete q;
     }
 }
 
+void commThread::calcObs(double nivelTanque1, double nivelTanque2, double sinalSaturado)
+{
+    double x_temp[2] = {nivelTanque1, nivelTanque2};
+    mat x(x_temp, 2, 1);
+
+    xEst = G*xEst + L*(nivelTanque2 - xEst[1]) + H*sinalSaturado;
+
+    erroEst = x - xEst;
+}
+
+void commThread::zerarObs()
+{
+    this->xEst = mat(2, 1, arma::fill::zeros);
+    this->erroEst = mat(2, 1, arma::fill::zeros);
+}
+
+void commThread::getPoles(double *l, complex<double> *pole)
+{
+    double l_temp[2] = {l[0], l[1]};
+    mat L_temp(l_temp, 2, 1);
+
+    mat temp = G - L_temp*C;
+
+    arma::cx_vec eigVal = eig_gen(temp);
+
+    pole[0] = eigVal[0];
+    pole[1] = eigVal[1];
+}
+
+void commThread::getL(complex<double> *pole, double *l)
+{
+    double coef1 = -pole[0].real() - pole[1].real();
+    complex <double>coef2 = pole[0] * pole[1];
+
+    mat A = arma::eye<mat> (2,2);
+    double l_aux[2] = {0, 1};
+    mat l_array(l_aux, 2, 1);
+
+    mat q = G*G + coef1*G + coef2.real()*A;
+
+    mat l_mat = q*invWo*l_array;
+
+    l[0] = l_mat[0];
+    l[1] = l_mat[1];
+}
+
+void commThread::calculoDeControleSeguidor(double nivelTanque1, double nivelTanque2, double erro)
+{
+    v += erro;
+    contEscravo.sinalCalculado = -(k2[0]*nivelTanque1 + k2[1]*nivelTanque2) + k1*v;
+    contMestre.sinalCalculado = contEscravo.sinalCalculado;
+
+    contEscravo.sinalSaturado = lockSignal(contEscravo.sinalCalculado, nivelTanque1, nivelTanque2);
+}
+
+void commThread::getPolesSeg(double *kSeg, complex<double> *poleSeg)
+{
+    bool flagPole[2];
+    flagPole[0] = false; flagPole[1] = false;
+
+    mat vec = ("0 0 1");
+    double kTemp[3] = {kSeg[0], kSeg[1], kSeg[2]};
+    mat kSegT(kTemp, 1, 3);
+
+    mat ka = kSegT*inv(kMatAux) - vec;
+
+    mat sist = Ga - Ha*ka;
+
+    arma::cx_vec eigVal = eig_gen(sist);
+
+    for (int i = 0; i < 3; i++){
+        if (eigVal[i].imag() == 0 && !flagPole[1]){
+            flagPole[1] = true;
+            poleSeg[2] = eigVal[i];
+        }
+        else if (!flagPole[0]){
+            poleSeg[0] = eigVal[i];
+            flagPole[0] = true;
+        }
+        else {
+            poleSeg[1] = eigVal[i];
+        }
+    }
+}
+
+void commThread::getK(complex<double> *poleSeg, double *kSeg)
+{
+    double a = poleSeg[0].real();
+    double b = poleSeg[0].imag();
+    double c = poleSeg[1].real();
+    double d = poleSeg[2].real();
+
+    double coef1, coef2, coef3;
+
+    if(b != 0){
+        coef1 = -2*a-d;
+        coef2 = pow(a,2) + 2*a*d + pow(b,2);
+        coef3 = -d*(pow(a,2) + pow(b,2));
+    }
+    else {
+        coef1 = -(a + c + d);
+        coef2 = a*c + d*(a + c);
+        coef3 = -a*c*d;
+    }
+
+    mat I = arma::eye<mat> (3,3);
+    mat vec = ("0 0 1");
+
+    mat q = Ga*Ga*Ga + coef1*Ga*Ga + coef2*Ga + coef3*I;
+
+    mat ka = vec*invWc*q;
+    mat k = (ka + vec)*kMatAux;
+
+    kSeg[0] = k[0];
+    kSeg[1] = k[1];
+    kSeg[2] = k[2];
+
+//    qDebug() << q[0] << q[3] << q[6];
+//    qDebug() << q[1] << q[4] << q[7];
+//    qDebug() << q[2] << q[5] << q[8];
+//    qDebug() << "Coef:" << coef1 << coef2 << coef3;
+//    qDebug() << "K:" << kSeg[0] << kSeg[1] << kSeg[2];
+}
 
 double commThread::lockSignal(double sinalCalculado, double nivelTanque1, double nivelTanque2){
 
@@ -208,7 +343,6 @@ double commThread::lockSignal(double sinalCalculado, double nivelTanque1, double
 
 void commThread::setParameters(double frequencia, double amplitude, double offset , double duracaoMax, double duracaoMin, int wave, bool malha, int channel, int *control, double *kp, double *ki, double *kd, bool *windup, bool *conditionalIntegration, double *taw, int tank, bool cascade,double *lOb,double *kSeg)
 {
-     qDebug() << ".....taw " <<taw ;
     this->frequencia = frequencia;
     this->amplitude = amplitude;
     this->offset = offset;
@@ -229,8 +363,6 @@ void commThread::setParameters(double frequencia, double amplitude, double offse
     this->contMestre.ki = ki[0];
     this->contMestre.kd = kd[0];
     this->contMestre.taw = taw[0];
-    qDebug() << ".....taw[0] " <<taw[0] ;
-
     this->contMestre.windup = windup[0];
     this->contMestre.conditionalIntegration = conditionalIntegration[0];
     this->contMestre.erro = 0;
@@ -239,7 +371,6 @@ void commThread::setParameters(double frequencia, double amplitude, double offse
     this->contEscravo.ki = ki[1];
     this->contEscravo.kd = kd[1];
     this->contEscravo.taw = taw[1];
-     qDebug() << ".....taw[1] " <<taw[1] ;
     this->contEscravo.windup = windup[1];
     this->contEscravo.conditionalIntegration = conditionalIntegration[1];
     this->contEscravo.erro = 0;
@@ -247,7 +378,17 @@ void commThread::setParameters(double frequencia, double amplitude, double offse
     this->tank = tank;
     this->cascade = cascade;
 
+    //Observador
+    this->L = mat(lOb, 2, 1);
+    this->observer = observer;
+    this->xEst = mat(2, 1, arma::fill::zeros);
+    this->erroEst = mat(2, 1, arma::fill::zeros);
 
+    //Seguidor
+    this->follower = follower;
+    this->k1 = kSeg[0];
+    this->k2[0] = kSeg[1];
+    this->k2[1] = kSeg[2];
 }
 
 // Zera todos os valores
@@ -321,14 +462,6 @@ void commThread::calculoDeControle(Controlador *c, double nivelTanque, double ni
     //Calculo do d
     c->d = c->kd*(c->erro - c->lastD)/period;
 
-//    qDebug() << " c->lastI: " << c->lastI ;
-//    qDebug() << " c->ki: " << c->ki;
-//    qDebug() << "period: " << period;
-//    qDebug() << " c->erro: " <<c->erro ;
-    qDebug() << " c->taw " <<c->taw ;
-    qDebug() << " i: " << c->i;
-    qDebug() << " d: " << c->d;
-
 
     switch (control[0]) {
     case SEM:
@@ -357,29 +490,20 @@ void commThread::calculoDeControle(Controlador *c, double nivelTanque, double ni
     c->sinalSaturado = commThread::lockSignal(c->sinalCalculado, nivelTanque1, nivelTanque2);
     c->diferencaSaida = c->sinalSaturado - c->sinalCalculado;
 
-    qDebug() << " c->sinalSaturado: " << c->sinalSaturado ;
-    qDebug() << " c->sinalCalculado: " << c->sinalCalculado;
-    qDebug() << " dentro controlador diferencaSaida: " << c->diferencaSaida;
-
     // WINDUP FIX
     if(c->windup) {
         // Anti-windup
-         qDebug() << "=====>>>> windup";
-        c->i += (c->kp/contMestre.taw)*period*c->diferencaSaida;
-
-        qDebug() << "wINDUP FIX i: " << c->i;
+        c->i += (c->kp/c->taw)*period*c->diferencaSaida;
+    } else if (c->conditionalIntegration && c->sinalSaturado != c->sinalCalculado) {
+        // Integral Condicional
+        c->i = c->lastI;
     }
 
     if (c->windup || c->conditionalIntegration) {
         c->sinalCalculado = (c->p + c->i + c->d);
         c->sinalSaturado = commThread::lockSignal(c->sinalCalculado, nivelTanque1, nivelTanque2);
         c->diferencaSaida = c->sinalSaturado - c->sinalCalculado;
-        qDebug() << " wINDUP FIX c->sinalSaturado: " << c->sinalSaturado ;
-        qDebug() << " wINDUP FIX c->sinalCalculado: " << c->sinalCalculado;
-        qDebug() << " wINDUP FIX dentro controlador diferencaSaida: " << c->diferencaSaida;
     }
-
-
 
     c->lastD = c->d;
     c->lastI = c->i;

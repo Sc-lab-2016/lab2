@@ -23,14 +23,12 @@ public:
     void setupPlot1(QCustomPlot *customPlot);
     void setupPlot2(QCustomPlot *customPlo2);
     void updatePlot1(double timeStamp, double redPlot, double bluePlot, double greenPlot, double orangePlot, double blue2Plot, double green2Plot, double orange2Plot);
-    void updatePlot2(double timeStamp, double redPlot, double bluePlot, double greenPlot, double green2Plot);
+    void updatePlot2(double timeStamp, double redPlot, double bluePlot, double greenPlot, double green2Plot, double pinkPlot, double blue2Plot, double orangePlot, double orange2Plot);
     double lockSignal(double sinalCalculado, double nivelTanque1);
     commThread *cThread;
 
 public slots:
-     void onPlotValues(double timeStamp, double sinalCalculadoMestre, double sinalCalculadoEscravo,
-                        double sinalSaturado, double nivelTanque1, double nivelTanque2, double setPoint,
-                        double erro, double iMestre, double iEscravo, double dMestre, double dEscravo);
+     void onPlotValues(double timeStamp, double sinalCalculadoMestre, double sinalCalculadoEscravo, double sinalSaturado, double nivelTanque1, double nivelTanque2, double setPoint, double erro, double iMestre, double iEscravo, double dMestre, double dEscravo, double nivelTanque1Est, double nivelTanque2Est, double erroEst1, double erroEst2);
 
 private slots:
   void on_comboBox_currentIndexChanged(int index);
@@ -140,7 +138,26 @@ private:
     double moduleOfPole(complex<double> pole);
     void on_poles_valueChange();
     void on_l_valueChange();
-
+    void calcPoles();
+    // flags para evitarem loop infinito de atualizacao dos valores
+        //observador
+    bool lObHasChanged;
+    bool poleObHasChanged;
+    void replicaPolo(int numPolo);
+    void setCascadeGraph(bool checked);
+        //seguidor
+    bool kSegHasChanged;
+    bool poleSegHasChanged;
+    void replicaPoloSeg(int numPolo);
+    void getPolesSeg();
+    void setPolesSeg(int poleNum);
+    void getKSeg();
+    void setKSeg(int num);
+    void calcPolesSeg();
+    void calcKSeg();
+    bool isInstableSeg();
+    void on_k_valueChange();
+    void on_poles_seg_valueChange();
 };
 
 #endif // SUPERVISORIO_H
