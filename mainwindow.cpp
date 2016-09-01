@@ -13,10 +13,7 @@ supervisorio::supervisorio(QWidget *parent) :
      * BEGIN - Flags
      * +++++++++++++++++++++++++++++++++++++++++++++++++
      */
-    lObHasChanged = false;
-    poleObHasChanged = false;
-    kSegHasChanged = false;
-    poleSegHasChanged = false;
+
     /* -----------------------------------------------
      * END - Flags
      * -----------------------------------------------
@@ -28,7 +25,7 @@ supervisorio::supervisorio(QWidget *parent) :
      */
 
     ui->setupUi(this);
-    QMainWindow::showFullScreen();
+    //QMainWindow::showFullScreen();
 
     qApp->setStyleSheet("QGroupBox { border: 0px solid gray;}");
 
@@ -55,7 +52,7 @@ supervisorio::supervisorio(QWidget *parent) :
      */
 
     cThread = new commThread(this);
-    connect(cThread,SIGNAL(plotValues(double, double, double, double, double, double, double, double, double, double, double, double, double, double, double, double)),this,SLOT(onPlotValues(double, double, double, double, double, double, double, double, double, double, double, double, double, double, double, double)));
+    connect(cThread,SIGNAL(plotValues(double, double, double, double, double, double, double, double, double, double, double, double)),this,SLOT(onPlotValues(double, double, double, double, double, double, double, double, double, double, double, double)));
 
     /* -----------------------------------------------
      * END - Thread init
@@ -347,7 +344,7 @@ void supervisorio::updatePlot1(double timeStamp, double redPlot, double bluePlot
 
     //Blue
     if(plot1Enable[1]) {
-        qDebug() << "blueDot" << bluePlot;
+        //qDebug() << "blueDot" << bluePlot;
         ui->customPlot->graph(1)->addData(timeStamp, bluePlot);
         ui->customPlot->graph(3)->clearData();
         ui->customPlot->graph(3)->addData(timeStamp, bluePlot);
@@ -408,7 +405,7 @@ void supervisorio::updatePlot1(double timeStamp, double redPlot, double bluePlot
 
 }
 
-void supervisorio::updatePlot2(double timeStamp, double redPlot, double bluePlot, double greenPlot, double green2Plot, double pinkPlot, double blue2Plot, double orangePlot, double orange2Plot)
+void supervisorio::updatePlot2(double timeStamp, double redPlot, double bluePlot, double greenPlot, double green2Plot)
 {
   //Red
   if(plot2Enable[0]) {
@@ -448,36 +445,28 @@ void supervisorio::updatePlot2(double timeStamp, double redPlot, double bluePlot
 
   //Pink
   if(plot2Enable[4]) {
-      ui->customPlot2->graph(4)->addData(timeStamp, pinkPlot);
       ui->customPlot2->graph(12)->clearData();
-      ui->customPlot2->graph(12)->addData(timeStamp, pinkPlot);
       ui->customPlot2->graph(4)->removeDataBefore(timeStamp-plotRange);
       ui->customPlot2->graph(4)->rescaleValueAxis(true);
   }
 
   //Blue2
   if(plot2Enable[5]) {
-      ui->customPlot2->graph(5)->addData(timeStamp, blue2Plot);
       ui->customPlot2->graph(13)->clearData();
-      ui->customPlot2->graph(13)->addData(timeStamp, blue2Plot);
       ui->customPlot2->graph(5)->removeDataBefore(timeStamp-plotRange);
       ui->customPlot2->graph(5)->rescaleValueAxis(true);
   }
 
   //Orange
   if(plot2Enable[6]) {
-      ui->customPlot2->graph(6)->addData(timeStamp, orangePlot);
       ui->customPlot2->graph(14)->clearData();
-      ui->customPlot2->graph(14)->addData(timeStamp, orangePlot);
       ui->customPlot2->graph(6)->removeDataBefore(timeStamp-plotRange);
       ui->customPlot2->graph(6)->rescaleValueAxis(true);
   }
 
   //Orange2
   if(plot2Enable[7]) {
-      ui->customPlot2->graph(7)->addData(timeStamp, orange2Plot);
       ui->customPlot2->graph(15)->clearData();
-      ui->customPlot2->graph(15)->addData(timeStamp, orange2Plot);
       ui->customPlot2->graph(7)->removeDataBefore(timeStamp-plotRange);
       ui->customPlot2->graph(7)->rescaleValueAxis(true);
   }
@@ -805,16 +794,21 @@ void supervisorio::on_pushButton_8_clicked()
     duracaoMax = ui->doubleSpinBox_4->value();
     duracaoMin= ui->doubleSpinBox_5->value();
 
+    kd[0]=kd[1];
+    ki[0]=ki[1];
     kp[0] = ui->doubleSpinBox_6->value();
     ki[0] = ui->doubleSpinBox_7->value();
-    if(ui->comboBox_3->currentIndex()==1) ki[0]=kp[0]/ki[0];
     kd[0] = ui->doubleSpinBox_8->value();
-    if(ui->comboBox_4->currentIndex()==1) kd[0]=kd[0]/kp[0];
 
 
 
     //taw = ui->doubleSpinBox_9->value();
     //taw = 237.19*sqrt(kd/ki);
+
+    qDebug() << " >>>>>>kd[0] " <<kd[0] ;
+    qDebug() << " >>>>>>kd[1] " <<kd[1] ;
+    qDebug() << " >>>>>>ki[0] " <<ki[0] ;
+    qDebug() << " >>>>>>ki[1] " <<ki[1] ;
     taw[0] = 75/sqrt(0.005/0.05)*sqrt(kd[0]/ki[0]);
     taw[1] = 75/sqrt(0.005/0.05)*sqrt(kd[1]/ki[1]);
 
@@ -822,6 +816,8 @@ void supervisorio::on_pushButton_8_clicked()
     wave = nextWave;
     control[0] = nextControl[0];
     control[1] = nextControl[1];
+    qDebug() << ">>>>>>taw[0] " <<taw[0] ;
+    qDebug() << ">>>>>>taw[1] " <<taw[1] ;
     bool malha = ui->radioButton_9->isChecked();
 
     int windupIndex = ui->comboBox_windup->currentIndex();
@@ -831,6 +827,7 @@ void supervisorio::on_pushButton_8_clicked()
     conditionalIntegration[1] = false;
     if(windupIndex == 1) {
         windup[0] = true;
+        windup[1] = true;
     } else if (windupIndex == 2) {
         conditionalIntegration[0] = true;
     }
@@ -843,13 +840,14 @@ void supervisorio::on_pushButton_8_clicked()
     int castControl[2];
     castControl[0] = static_cast<int>(control[0]);
     castControl[1] = static_cast<int>(control[1]);
+
     cThread->setParameters(frequencia, amplitude, offset, duracaoMax, duracaoMin, wave, malha, channel, castControl, kp, ki, kd, windup, conditionalIntegration, taw, tank, cascade,lOb, kSeg);
 }
 
-void supervisorio::onPlotValues(double timeStamp, double sinalCalculadoMestre, double sinalCalculadoEscravo, double sinalSaturado, double nivelTanque1, double nivelTanque2, double setPoint, double erro, double iMestre, double iEscravo, double dMestre, double dEscravo, double nivelTanque1Est, double nivelTanque2Est, double erroEst1, double erroEst2){
+void supervisorio::onPlotValues(double timeStamp, double sinalCalculadoMestre, double sinalCalculadoEscravo, double sinalSaturado, double nivelTanque1, double nivelTanque2, double setPoint, double erro, double iMestre, double iEscravo, double dMestre, double dEscravo){
     //Update plots
     supervisorio::updatePlot1(timeStamp, sinalSaturado, sinalCalculadoMestre, iMestre, dMestre, sinalCalculadoEscravo, iEscravo, dEscravo);//Esses ultimos sao os valores integrativos e derivativos
-    supervisorio::updatePlot2(timeStamp, nivelTanque1, nivelTanque2, setPoint, erro, nivelTanque1Est, nivelTanque2Est, erroEst1, erroEst2);
+    supervisorio::updatePlot2(timeStamp, nivelTanque1, nivelTanque2, setPoint, erro);
 
     //Update Water Level
     ui->progressBar->setValue(nivelTanque1*100);
@@ -873,10 +871,9 @@ void supervisorio::on_connect_clicked(bool checked)
     //Inicia Thread de comunicação
     if (checked) {
         cThread->setNullParameters();
-        cThread->zerarObs();
         cThread->setSimulationMode(false);
         int erro = cThread->start();
-        if(!erro) {
+        if(erro) {
             ui->connect->setText("Desconectar");
             ui->connectLabel->setText("Conectado");
         } else {
@@ -968,37 +965,11 @@ void supervisorio::on_button_limpar_clicked()
 void supervisorio::on_pushButton_zerar_clicked()
 {
     cThread->setNullParameters();
-    cThread->zerarObs();
 }
 
 
 
 
-void supervisorio::calcPoles()
-{
-    cThread->getPoles(lOb, polesOb);
-}
-
-void supervisorio::calcPolesSeg()
-{
-    double kSeg[3] = {this->kSeg[1], this->kSeg[2], this->kSeg[0]};
-
-    cThread->getPolesSeg(kSeg, polesSeg);
-}
-
-void supervisorio::calcLOb()
-{
-    cThread->getL(polesOb, lOb);
-}
-
-void supervisorio::calcKSeg()
-{
-    double kSeg[3];
-    cThread->getK(polesSeg, kSeg);
-    this->kSeg[0] = kSeg[2];
-    this->kSeg[1] = kSeg[0];
-    this->kSeg[2] = kSeg[1];
-}
 
 
 

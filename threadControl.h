@@ -34,12 +34,6 @@ public:
     void calculoDeControle(Controlador*, double,double,double);
     int start();
     //Observador
-    void getPoles(double *l, complex<double> *pole);
-    void getL(complex<double> *pole, double *l);
-    void zerarObs();
-    //Seguidor
-    void getPolesSeg(double *kSeg, complex<double> *poleSeg);
-    void getK(complex<double> *poleSeg, double *kSeg);
 
 private:
     Controlador contMestre, contEscravo;
@@ -66,46 +60,17 @@ private:
     double waveTime, waveTimeStamp;
     Quanser* q;
 
-    // Entrada do usuario ou calculado pelo auto-valores
-    complex<double> polesOb[2];
 
-    // Polos seguidor
-    complex<double> polesSeg[3];
-
-    // Matrizes para o calculo do observador
-    mat G;
-    mat H;
-    mat C;
-    mat invWo;
-    mat L;
-
-    //Valores estimados
-    mat xEst;
-    mat erroEst;
-
-    //Matrizes para o calculo do seguidor
-    mat Ga;
-    mat Ha;
-    mat invWc;
-    mat K;
-    mat Ka;
-    double k1;
-    mat k2;
-    mat kMatAux; //Matriz auxiliar para o calculo de k1 e k2
     double v;
 
     // Travas
     double lockSignal(double sinalCalculado, double nivelTanque1, double nivelTanque2);
 
-    // Observador
-    void calcObs(double nivelTanque1, double nivelTanque2, double sinalSaturado);
-
-    // Seguidor
-    void calcSeg();
-    void calculoDeControleSeguidor(double nivelTanque1, double nivelTanque2, double erro);
 
 signals:
-    void plotValues(double timeStamp, double sinalCalculadoMestre, double sinalCalculadoEscravo, double sinalSaturado, double nivelTanque1, double nivelTanque2, double setPoint, double erro, double iMestre, double iEscravo, double dMestre, double dEscravo, double nivelTanque1Est, double nivelTanque2Est, double erroEst1, double erroEst2);
+    void plotValues(double timeStamp, double sinalCalculadoMestre, double sinalCalculadoEscravo,
+                    double sinalSaturado, double nivelTanque1, double nivelTanque2, double setPoint,
+                    double erro, double iMestre, double iEscravo, double dMestre, double dEscravo);
 
 };
 #endif // COMMTHREAD_H
