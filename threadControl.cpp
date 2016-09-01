@@ -29,9 +29,6 @@ commThread::commThread(QObject *parent):
     contEscravo.lastI = 0;
     contEscravo.lastD = 0;
 
-     kp=1;
-     ki=0,05;
-     kd=0,005;
 
 
     v = 0;
